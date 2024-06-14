@@ -228,4 +228,202 @@ func main() {
 
 #### 3、 管道
 
+##### 3.1 管道特性
+
+- 管道的**本质**就是一个**队列**，先进先出。
+- 自身线程安全，多个协程操作同一个channel时，不会发生资源竞争的问题。
+- 管道是有类型的，一个string的管道只能存放string类型的数据
+
+##### 3.2 管道的使用
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    // 声明并初始化一个存放 int 类型的管道
+	intChan := make(chan int, 2)
+	intChan <- 10
+	fmt.Printf("%#v", <-intChan)
+	close(intChan)
+}
+/*
+	在往管道 装完数据以后，要使用内置函数 close()将管道关闭；
+	管道关闭以后只能读取，不能写入
+*/
+```
+
+
+
+##### 3.3 管道的遍历
+
+​		管道只能使用 for-range 遍历，因为channel没有索引。==**注意：**==在使用for -range遍历前，如果没有关闭管道，就会出现deadlock的错误，因为for-range会一直从管道中取值，所以我们在遍历前要进行管道的关闭。
+
+```go
+package main
+
+import (
+	"fmt"
+	"sync"
+	"time"
+)
+
+// 主线程等待协程执行完毕
+var wg sync.WaitGroup
+
+func writer(intChan chan int) {
+	defer wg.Done()
+	for i := 1; i <= 10; i++ {
+		intChan <- i * 10
+		fmt.Println("写入一个数据: ", i*10)
+		time.Sleep(time.Second * 1)
+	}
+    // 如果不关闭管道，会导致读完管道数据还会继续读的错误
+	close(intChan)
+}
+func reader(intChan chan int) {
+	defer wg.Done()
+    // 使用for-range 遍历
+	for v := range intChan {
+		fmt.Println("读了一个数据: ", v)
+		time.Sleep(time.Second * 2)
+	}
+}
+func main() {
+	intChan := make(chan int, 10)
+	wg.Add(2)
+
+	go writer(intChan)
+	go reader(intChan)
+
+	wg.Wait()
+}
+/*
+	使用for-range遍历，如果通道里面的数据读完了，还会继续读，所以要使用close()关闭
+	管道，防止继续读出错。
+*/
+```
+
+
+
+##### 3.4 管道的堵塞
+
+​		当管道只有写数据没有读数据时，会引起管道的堵塞，deadlock。只要有协程在读取数据就不会引发堵塞，即使读频率比写的慢得多。
+
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	intChan := make(chan int, 10)
+
+	for i := 1; i <= 10; i++ {
+		intChan <- i * 10
+		fmt.Println("写入一个数据: ", i*10)
+		time.Sleep(time.Second * 1)
+	}
+    select {}
+}
+/*
+	此处测试的结果是，一直往管道里写数据并不会发生deadlock
+	// 加select以后就回出现
+	fatal error: all goroutines are asleep - deadlock!
+	goroutine 1 [select (no cases)]:
+*/
+```
+
+
+
 ​		
+
+##### 3.5 管道的选择 select
+
+​		select用来解决多个管道的选择问题，也可以叫多路复用，可以从多个管道种随机公平地选择一个来执行。不过需要注意的是：
+
+- case后面必须进行的是io操作（channel取值 <-intchan 是io操作），不能是等式，随机的去选择一个io操作。
+- 最后加 default 用来防止select被阻塞。
+
+​		使用select可以同时监听一个或多个channel，同时从多个通道接收数据，直到其中一个channel ready(是指就绪，从channel接收一个数据就算ready)。通道在接收数据时，如果没有数据可以接收将发生阻塞。
+
+```go
+package main
+import (
+    "fmt"
+    "time"
+)
+func writeInt(intChan chan int) {
+    for i := 1; i <= 10; i++ {
+        intChan <- i * 10
+        time.Sleep(time.Second * 1)
+    }
+    close(intChan)
+}
+func writeString(stringChan chan string) {
+    for i := 1; i <= 10; i++ {
+        stringChan <- "Hello World"
+        time.Sleep(time.Second * 1)
+    }
+    close(stringChan)
+}
+func main() {
+    intChan := make(chan int, 10)
+    stringChan := make(chan string, 10)
+
+    go writeInt(intChan)
+    go writeString(stringChan)
+
+    select {
+        case i := <-intChan:
+        fmt.Printf("接收到int:%v", i)
+        case str := <-stringChan:
+        fmt.Printf("接收到string:%v", str)
+        default:
+        fmt.Println("啥都没收到......")
+    }
+}
+/*
+	从任一管道接收一数据后 select 即执行完毕
+*/
+```
+
+​		使用select判断是否存满，没存满则继续存：
+
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+func main() {
+	intChan := make(chan int, 10)
+	go writer(intChan)
+	for v := range intChan {
+		fmt.Printf("输出: %v\n", v)
+        // 使读取数据要慢一些
+		time.Sleep(time.Second)
+	}
+
+}
+func writer(intChan chan int) {
+	for {
+		select {
+		case intChan <- 1:
+			fmt.Println("Write 1...")
+		default:
+			fmt.Println("Channel full")
+		}
+        // 存数据快
+		time.Sleep(time.Millisecond * 500)
+	}
+}
+/*
+	存数据比读数据要快，使用select，存满之后会提示存满，管道有空闲位置后会继续往里存储。
+*/
+```
+
