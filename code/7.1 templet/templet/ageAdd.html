@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><Base></Base></title>
+</head>
+<body>
+    <hr>
+    {{ $flag := true }}
+    {{if $flag}}
+    <p>
+        {{ .Age }}
+    </p>
+    <p>
+        增加后: {{ AgeAdd .Age }}
+    </p>
+    {{ end }}
+</body>
+</html>
