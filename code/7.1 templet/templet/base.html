@@ -3,15 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><Base></Base></title>
+    <title><Base>test</Base></title>
 </head>
 <body>
     <hr>
-    {{ $flag := true }}
-    {{if $flag}}
-    {{ with .slice }}
-    {{ index . 1}} 
-    {{ end }}
-    {{ end }}
+    {{block "content" .}}
+    {{end}}
 </body>
 </html>

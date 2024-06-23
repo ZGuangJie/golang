@@ -28,7 +28,7 @@
 
 ​		定义好模板文件以后，使用下面的三个方法解析模板，可以得到模板对象：
 
-##### 2.2.2 .ParseFiles
+##### 2.2.1 .ParseFiles
 
 ```go
 package main
@@ -78,6 +78,10 @@ if err != nil {
     log.Fatal("解析模板错误: ", err)
     }
 ```
+
+##### 2.2.2 .ParseGlob
+
+​		使用`template.ParseGlob`可以按照正则匹配规则解析模板文件（同时打开多个文件，返回文件各自的句柄），然后通过`ExecuteTemplate`渲染指定的模板。
 
 
 
@@ -312,10 +316,71 @@ func main() {
 
 #### 4.1 两种情况
 
-1. 单独的template文件嵌套；
-2. 通过define自定义的template嵌套；
+1. **单独的template文件嵌套；**
 
 ```go
+func pading(w http.ResponseWriter, r *http.Request) {
+	// 1.定义模板 Details see dir templet
+	// 2.解析模板
+	t, err := template.ParseFiles("./templet/base.html", "./templet/hello.tmpl")
+	if err != nil {
+		log.Fatal("文件解析错误: ", err)
+	}
+	// 3.渲染模板
+	student := stu{
+		Name: "zhu",
+		Age:  26,
+		Sex:  true,
+	}
+	sli := []string{"篮球", "足球", "跑步"}
+	temp := map[string]interface{}{
+		"stu":   student,
+		"slice": sli,
+	}
+	t.Execute(w, temp)
+}
+/*
+	模板之间的嵌套就是通过{{template "name.tmpl"}}占位，将子模版内容完整嵌套。注意要将模板的后缀定义为 .tmpl。
+*/
+```
+
+1. **通过define自定义的template嵌套；**
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><Base>test</Base></title>
+</head>
+<body>
+    <hr>
+    {{ $flag := true }}
+    {{if $flag}}
+    {{ with .slice }}
+    {{ index . 1}} 
+    {{ end }}
+    {{ end }}
+    <hr>
+    <p>单独定义模板</p>
+    {{template "hello.tmpl"}}
+	<hr>
+    <p>单独定义模板</p>
+    {{ template "oi.tmpl"}}
+</body>
+</html>
+
+{{define "oi.tmpl"}}
+<oi>
+    <p>111</p>
+</oi>
+{{end}}
+
+
+<!--
+	注意要在html外定义，还有end结束符。定义好的模板与单独文件的模板使用无异。
+-->
 ```
 
 #### 4.2 block 模板的继承
@@ -323,12 +388,33 @@ func main() {
 ​		使用`block`定义一组根模板，然后在子模版里对**块模板重新定义**。在基础模板里 **{{block "content" . }}{{end}}** 使用预留一个代码块，在子模版里定义 填充的内容，需要指定继承的哪个基础模板**{{templates/base.tmpl}}**。
 
 ```go
-
+func pading(w http.ResponseWriter, r *http.Request) {
+    // 1.定义模板 Details see dir templet
+    // 2.解析模板
+    t, err := template.ParseFiles("./templet/base.html", "./templet/block.tmpl")
+    if err != nil {
+        log.Fatal("文件解析错误: ", err)
+    }
+    // 3.渲染模板
+    student := stu{
+        Name: "zhu",
+        Age:  26,
+        Sex:  true,
+    }
+    sli := []string{"篮球", "足球", "跑步"}
+    temp := map[string]interface{}{
+        "stu":   student,
+        "slice": sli,
+    }
+    err = t.ExecuteTemplate(w, "block.tmpl", temp)
+    if err != nil {
+        http.Error(w, fmt.Sprintf("Failed to read template: %v", err), http.StatusInternalServerError)
+    }
+}
+/*
+	使用block实现"继承",在基础模板里使用，{{block "content" .}}{{end}}占位，在子模板里使定义内容，渲染被占位的地方。
+*/
 ```
-
-
-
-​		
 
 #### 模板继承
 
@@ -430,6 +516,3 @@ func main() {
     ```
 
     
-
-5. 
-

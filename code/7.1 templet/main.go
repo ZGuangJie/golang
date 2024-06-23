@@ -25,7 +25,7 @@ func AddAge(age interface{}) int16 {
 func pading(w http.ResponseWriter, r *http.Request) {
 	// 1.定义模板 Details see dir templet
 	// 2.解析模板
-	t, err := template.ParseFiles("./templet/base.html")
+	t, err := template.ParseFiles("./templet/base.html", "./templet/block.tmpl")
 	if err != nil {
 		log.Fatal("文件解析错误: ", err)
 	}
@@ -40,7 +40,10 @@ func pading(w http.ResponseWriter, r *http.Request) {
 		"stu":   student,
 		"slice": sli,
 	}
-	t.Execute(w, temp)
+	err = t.ExecuteTemplate(w, "block.tmpl", temp)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to read template: %v", err), http.StatusInternalServerError)
+	}
 }
 func ageAdd(w http.ResponseWriter, r *http.Request) {
 	// 1.定义模板 Details see dir templet
